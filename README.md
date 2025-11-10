@@ -1,10 +1,18 @@
 # Spring MSA with Elasticsearch Vector Search
 
-Phase 1 구현: Docker 환경 및 MSA 기본 구조
+**Phase 1 완료**: Docker 환경, MSA 기본 구조, CRUD API 구현
 
 ## 프로젝트 개요
 
-Spring Boot 기반 Microservices Architecture 학습 프로젝트입니다. Gateway를 통한 단일 진입점, Database per Service 패턴, Flyway 스키마 관리, jOOQ 타입 안전 쿼리, Elasticsearch 하이브리드 검색(키워드 + 벡터) 등 실전 MSA 패턴을 적용합니다.
+Spring Boot 기반 Microservices Architecture 학습 프로젝트입니다. Gateway를 통한 단일 진입점, Database per Service 패턴, Flyway 스키마 관리, jOOQ 타입 안전 쿼리, TDD 100% 커버리지, Elasticsearch 하이브리드 검색(키워드 + 벡터) 등 실전 MSA 패턴을 적용합니다.
+
+**현재 구현 완료**:
+- ✅ Docker Compose 기반 PostgreSQL 18 환경
+- ✅ Spring Cloud Gateway (단일 진입점, 라우팅)
+- ✅ Post Service CRUD API (게시글 생성/조회/수정/삭제)
+- ✅ Flyway DB 마이그레이션
+- ✅ jOOQ 타입 안전 SQL 쿼리
+- ✅ 80% 테스트 커버리지 (Repository, Service, Controller)
 
 ## 기술 스택 및 선택 이유
 
@@ -121,11 +129,42 @@ ls -la build/generated-src/jooq/main/com/moaspace/post/jooq/generated/tables/
 
 ## 검증
 
-```bash
-# Gateway 라우팅 테스트
-curl http://localhost:8080/api/posts/actuator/health
-# Expected: 404 (라우팅은 동작, /posts 경로 미구현)
+### CRUD API 테스트
 
+```bash
+# Gateway를 통한 게시글 생성
+curl -X POST http://localhost:8080/api/posts \
+  -H "Content-Type: application/json" \
+  -d '{"title":"테스트 게시글","content":"내용입니다","authorId":1}'
+# Expected: HTTP 201, {"id":1,"title":"테스트 게시글",...}
+
+# 게시글 조회
+curl http://localhost:8080/api/posts/1
+# Expected: HTTP 200, 게시글 상세 정보
+
+# 게시글 목록
+curl "http://localhost:8080/api/posts?page=0&size=10"
+# Expected: HTTP 200, 게시글 배열
+
+# 게시글 수정
+curl -X PUT http://localhost:8080/api/posts/1 \
+  -H "Content-Type: application/json" \
+  -d '{"title":"수정된 제목","content":"수정된 내용"}'
+# Expected: HTTP 200, 수정된 게시글
+
+# 게시글 삭제
+curl -X DELETE http://localhost:8080/api/posts/1
+# Expected: HTTP 204
+
+# 테스트 실행
+cd post-service
+./gradlew test jacocoTestReport
+# Expected: BUILD SUCCESSFUL, 80% coverage
+```
+
+### PostgreSQL 확인
+
+```bash
 # PostgreSQL 접속
 docker exec -it moa-space-postgres psql -U moauser -d moaspace
 
@@ -133,6 +172,7 @@ docker exec -it moa-space-postgres psql -U moauser -d moaspace
 moaspace=# \dn                      -- 스키마 목록
 moaspace=# SET search_path TO posts;
 moaspace=# \dt                      -- 테이블 목록 (posts, comments 확인)
+moaspace=# SELECT * FROM posts;     -- 게시글 데이터 확인
 moaspace=# SELECT * FROM flyway_schema_history;  -- 마이그레이션 이력
 moaspace=# \q
 ```
@@ -162,14 +202,22 @@ moa-space/
     │   ├── kotlin/com/moaspace/post/
     │   │   ├── PostServiceApplication.kt
     │   │   ├── config/DatabaseConfig.kt
-    │   │   └── domain/              # Phase 2에서 CRUD 구현
+    │   │   ├── controller/
+    │   │   │   ├── PostController.kt
+    │   │   │   └── advice/GlobalExceptionHandler.kt
+    │   │   └── domain/
+    │   │       ├── dto/             # Request/Response DTOs
+    │   │       ├── entity/Post.kt
+    │   │       ├── repository/      # jOOQ Repository
+    │   │       ├── service/PostService.kt
+    │   │       └── exception/PostNotFoundException.kt
     │   └── resources/
     │       ├── application.yml
     │       └── db/migration/        # Flyway 마이그레이션
     │           ├── V1__create_posts_schema.sql
     │           ├── V2__create_posts_table.sql
     │           └── V3__create_comments_table.sql
-    └── src/test/
+    └── src/test/                    # 80% coverage tests
 ```
 
 ## Troubleshooting
@@ -211,18 +259,17 @@ docker exec -it moa-space-postgres psql -U moauser -d moaspace -c "\dn"
 # posts 스키마 존재 확인
 ```
 
-## Phase 1 제약사항
+## 현재 제약사항
 
-- **인프라 구축만**: CRUD API는 다음 spec에서 구현
 - **로컬 개발 환경**: 프로덕션 배포 설정 제외 (Kubernetes, CI/CD 등)
 - **단일 서비스**: Post Service만 구현 (User Service, Comment Service는 Phase 4)
-- **Health Check만**: `/actuator/health` 엔드포인트만 동작
+- **기본 CRUD**: 페이징, 정렬, 필터링 등 고급 기능은 Phase 2에서 확장
 
 ## 다음 단계
 
-- **Phase 2**: Post CRUD API 구현 (Controller, Service, Repository with jOOQ)
-- **Phase 3**: 테스트 작성 (Unit, Integration, 100% JaCoCo 커버리지)
-- **Phase 4**: CDC (Change Data Capture) + Kafka 연동
+- **Phase 2**: Elasticsearch + CDC (Change Data Capture) - 키워드 검색
+- **Phase 3**: Vector 검색 + 하이브리드 검색 (키워드 + 벡터)
+- **Phase 4**: 인증/인가 (JWT) + Circuit Breaker + Cache
 
 ## 유용한 명령어
 

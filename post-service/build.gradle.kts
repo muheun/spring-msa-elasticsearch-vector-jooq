@@ -7,7 +7,7 @@ plugins {
     jacoco
 }
 
-group = "com.moaspace"
+group = "me.muheun.moaspace"
 version = "0.0.1-SNAPSHOT"
 
 java {
@@ -22,6 +22,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-jooq")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 
@@ -48,13 +49,33 @@ tasks.jacocoTestReport {
         xml.required.set(true)
         html.required.set(true)
     }
+    classDirectories.setFrom(
+        files(classDirectories.files.map {
+            fileTree(it) {
+                exclude(
+                    "**/jooq/generated/**",
+                    "**/PostServiceApplication**"
+                )
+            }
+        })
+    )
 }
 
 tasks.jacocoTestCoverageVerification {
+    classDirectories.setFrom(
+        files(classDirectories.files.map {
+            fileTree(it) {
+                exclude(
+                    "**/jooq/generated/**",
+                    "**/PostServiceApplication**"
+                )
+            }
+        })
+    )
     violationRules {
         rule {
             limit {
-                minimum = "0.50".toBigDecimal()
+                minimum = "0.80".toBigDecimal()
             }
         }
     }
@@ -94,7 +115,7 @@ jooq {
                         excludes = "flyway_schema_history"
                     }
                     target.apply {
-                        packageName = "com.moaspace.post.jooq.generated"
+                        packageName = "me.muheun.moaspace.post.jooq.generated"
                         directory = "build/generated-src/jooq/main"
                     }
                     generate.apply {
