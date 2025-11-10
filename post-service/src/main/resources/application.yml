@@ -1,0 +1,33 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: post-service
+  datasource:
+    url: jdbc:postgresql://localhost:15432/moaspace?currentSchema=posts
+    username: moauser
+    password: moa123!
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    schemas: posts
+    locations: classpath:db/migration
+    validate-on-migrate: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,flyway
+  endpoint:
+    health:
+      show-details: always
+    flyway:
+      enabled: true
+
+logging:
+  level:
+    org.flywaydb: INFO
+    org.jooq: DEBUG

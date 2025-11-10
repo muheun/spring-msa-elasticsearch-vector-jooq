@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: moa-space-postgres
+    restart: always
+    command: |
+      postgres
+        -c shared_buffers=256MB
+        -c max_connections=200
+        -c effective_cache_size=1GB
+        -c maintenance_work_mem=64MB
+        -c checkpoint_completion_target=0.9
+        -c wal_buffers=16MB
+        -c default_statistics_target=100
+        -c random_page_cost=1.1
+        -c effective_io_concurrency=200
+        -c work_mem=4MB
+        -c min_wal_size=1GB
+        -c max_wal_size=4GB
+        -c listen_addresses='*'
+        -c log_statement=all
+        -c log_duration=on
+        -c log_timezone='Asia/Seoul'
+        -c timezone='Asia/Seoul'
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-moauser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-moa123!}
+      POSTGRES_DB: ${POSTGRES_DB:-moaspace}
+      POSTGRES_HOST_AUTH_METHOD: md5
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C --lc-collate=C --lc-ctype=C"
+      TZ: Asia/Seoul
+      PGTZ: Asia/Seoul
+    ports:
+      - "${PORT:-15432}:5432"
+    volumes:
+      - ./data:/var/lib/postgresql/18/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-moauser} -d ${POSTGRES_DB:-moaspace}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - moa-space-network
+
+networks:
+  moa-space-network:
+    driver: bridge

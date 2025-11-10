@@ -1,0 +1,3 @@
+CREATE SCHEMA IF NOT EXISTS posts;
+
+ALTER SCHEMA posts OWNER TO moauser;
