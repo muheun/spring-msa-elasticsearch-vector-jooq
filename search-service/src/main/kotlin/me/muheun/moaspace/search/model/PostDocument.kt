@@ -4,9 +4,13 @@ import org.springframework.data.annotation.Id
 import org.springframework.data.elasticsearch.annotations.Document
 import org.springframework.data.elasticsearch.annotations.Field
 import org.springframework.data.elasticsearch.annotations.FieldType
+import org.springframework.data.elasticsearch.annotations.Mapping
+import org.springframework.data.elasticsearch.annotations.Setting
 import java.time.Instant
 
-@Document(indexName = "posts")
+@Document(indexName = "posts", createIndex = false)
+@Setting(settingPath = "elasticsearch/settings/posts-settings.json")
+@Mapping(mappingPath = "elasticsearch/mappings/posts-mapping.json")
 data class PostDocument(
     @Id
     val id: Long,

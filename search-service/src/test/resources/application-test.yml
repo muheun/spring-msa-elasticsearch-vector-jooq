@@ -1,0 +1,15 @@
+server:
+  port: 0
+
+elasticsearch:
+  uris: http://localhost:9200
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+
+logging:
+  level:
+    me.muheun.moaspace.search: DEBUG
+    org.elasticsearch: WARN
