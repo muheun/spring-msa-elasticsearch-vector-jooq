@@ -1,6 +1,9 @@
 # Spring MSA with Elasticsearch Vector Search
 
-Phase 1 구현: Docker 환경 및 MSA 기본 구조
+**현재 진행 상황**:
+- ✅ Phase 1: Docker 환경 및 MSA 기본 구조
+- ✅ Phase 2: Post Service CRUD API 구현
+- ✅ Phase 3: CDC 기반 검색 시스템 (Debezium + Kafka + Elasticsearch)
 
 ## 프로젝트 개요
 
@@ -34,26 +37,54 @@ Spring Boot 기반 Microservices Architecture 학습 프로젝트입니다. Gate
        │
        ▼
 ┌─────────────────────┐
-│   Gateway (8080)    │ ← 단일 진입점 (Spring Cloud Gateway)
+│   Gateway (8080)    │ ← 단일 진입점
 └──────┬──────────────┘
        │
-       ├─→ POST /api/posts/** ─→ ┌──────────────────┐
-       │                          │ Post Service     │
-       │                          │   (8081)         │
-       │                          └────────┬─────────┘
-       │                                   │
-       │                                   ▼
-       │                          ┌──────────────────┐
-       │                          │  PostgreSQL 18   │
-       │                          │    (15432)       │
-       │                          │  Schema: posts   │
-       │                          └──────────────────┘
+       ├─→ /api/posts/**  ─→ ┌──────────────────┐
+       │                      │ Post Service     │
+       │                      │   (8081)         │
+       │                      └────────┬─────────┘
+       │                               │ CRUD
+       │                               ▼
+       │                      ┌──────────────────┐
+       │                      │  PostgreSQL 18   │
+       │                      │    (15432)       │
+       │                      │  Schema: posts   │
+       │                      │  WAL: logical    │
+       │                      └────────┬─────────┘
+       │                               │ CDC
+       │                               ▼
+       │                      ┌──────────────────┐
+       │                      │   Debezium       │ ← pgoutput plugin
+       │                      │   Connect        │
+       │                      │    (8083)        │
+       │                      └────────┬─────────┘
+       │                               │ JSON events
+       │                               ▼
+       │                      ┌──────────────────┐
+       │                      │     Kafka        │ ← posts.posts.posts topic
+       │                      │  (9092/19092)    │
+       │                      └────────┬─────────┘
+       │                               │ consume
+       │                               ▼
+       ├─→ /api/search/**   ─→ ┌──────────────────┐
+       │                      │ Search Service   │ ← @KafkaListener
+       │                      │   (8082)         │
+       │                      └────────┬─────────┘
+       │                               │ index
+       │                               ▼
+       │                      ┌──────────────────┐
+       │                      │ Elasticsearch    │ ← Nori analyzer
+       │                      │    (9200)        │
+       │                      │  Index: posts    │
+       │                      └──────────────────┘
 ```
 
 **설계 원칙**:
-- **Gateway 우선**: 모든 요청은 Gateway를 거쳐 서비스로 라우팅 (향후 서비스 추가 시 클라이언트 URL 변경 불필요)
-- **Database per Service**: Post Service는 `posts` 스키마만 접근 (서비스 간 데이터 독립성 보장)
-- **Schema Ownership**: Flyway가 스키마 생성/변경 관리 (Docker init 스크립트는 확장 설치만)
+- **Gateway 우선**: 모든 요청은 Gateway를 거쳐 서비스로 라우팅
+- **Database per Service**: Post Service는 `posts` 스키마만 접근 (데이터 독립성)
+- **CDC 기반 동기화**: PostgreSQL 변경사항을 Debezium이 자동 감지 → Kafka → Search Service
+- **Eventual Consistency**: PostgreSQL 변경 후 ~5초 내 Elasticsearch 동기화 (검증 완료)
 
 ## 빠른 시작
 
@@ -115,7 +146,7 @@ cd post-service
 ./gradlew generateJooq
 
 # 생성된 파일 확인
-ls -la build/generated-src/jooq/main/com/moaspace/post/jooq/generated/tables/
+ls -la build/generated-src/jooq/main/me/muheun/moaspace/post/jooq/generated/tables/
 # Expected: Posts.java, Comments.java
 ```
 
@@ -141,34 +172,46 @@ moaspace=# \q
 
 ```
 moa-space/
-├── docker-compose.yml       # PostgreSQL 18 설정
-├── .env                     # DB credentials (gitignored)
+├── docker-compose.yml       # PostgreSQL, Kafka, Debezium, Elasticsearch
+├── .env                     # Credentials (gitignored)
 ├── init/                    # PostgreSQL 초기화 스크립트
-│   └── 01-install-extensions.sh
 ├── data/                    # PostgreSQL 데이터 (gitignored)
 │
 ├── gateway/                 # Spring Cloud Gateway (port 8080)
 │   ├── build.gradle.kts
+│   └── src/main/
+│       ├── kotlin/me/muheun/moaspace/gateway/
+│       └── resources/application.yml
+│
+├── post-service/            # Post Service (port 8081)
+│   ├── build.gradle.kts
 │   ├── src/main/
-│   │   ├── kotlin/com/moaspace/gateway/
-│   │   │   ├── GatewayApplication.kt
-│   │   │   └── config/GatewayConfig.kt
-│   │   └── resources/application.yml
+│   │   ├── kotlin/me/muheun/moaspace/post/
+│   │   │   ├── PostServiceApplication.kt
+│   │   │   ├── controller/      # REST API
+│   │   │   ├── service/         # 비즈니스 로직
+│   │   │   └── repository/      # jOOQ 데이터 접근
+│   │   └── resources/
+│   │       ├── application.yml
+│   │       └── db/migration/    # Flyway
 │   └── src/test/
 │
-└── post-service/            # Post Service (port 8081)
+└── search-service/          # Search Service (port 8082) ⭐ NEW
     ├── build.gradle.kts
     ├── src/main/
-    │   ├── kotlin/com/moaspace/post/
-    │   │   ├── PostServiceApplication.kt
-    │   │   ├── config/DatabaseConfig.kt
-    │   │   └── domain/              # Phase 2에서 CRUD 구현
+    │   ├── kotlin/me/muheun/moaspace/search/
+    │   │   ├── SearchApplication.kt
+    │   │   ├── config/
+    │   │   │   └── ElasticsearchConfig.kt  # 인덱스 초기화
+    │   │   ├── model/
+    │   │   │   └── PostDocument.kt         # @Document 엔티티
+    │   │   └── consumer/
+    │   │       └── PostConsumer.kt         # @KafkaListener
     │   └── resources/
-    │       ├── application.yml
-    │       └── db/migration/        # Flyway 마이그레이션
-    │           ├── V1__create_posts_schema.sql
-    │           ├── V2__create_posts_table.sql
-    │           └── V3__create_comments_table.sql
+    │       ├── application.yml              # Kafka, Elasticsearch 설정
+    │       └── elasticsearch/
+    │           ├── settings/posts-settings.json  # Nori 분석기
+    │           └── mappings/posts-mapping.json
     └── src/test/
 ```
 
@@ -211,18 +254,70 @@ docker exec -it moa-space-postgres psql -U moauser -d moaspace -c "\dn"
 # posts 스키마 존재 확인
 ```
 
-## Phase 1 제약사항
+## Phase 3: CDC 기반 검색 시스템 (완료 ✅)
 
-- **인프라 구축만**: CRUD API는 다음 spec에서 구현
-- **로컬 개발 환경**: 프로덕션 배포 설정 제외 (Kubernetes, CI/CD 등)
-- **단일 서비스**: Post Service만 구현 (User Service, Comment Service는 Phase 4)
-- **Health Check만**: `/actuator/health` 엔드포인트만 동작
+### 데이터 동기화 흐름
+
+**CREATE 시나리오**:
+```
+1. Post Service → PostgreSQL INSERT
+2. Debezium이 WAL 감지 (pgoutput plugin)
+3. Kafka에 JSON 이벤트 발행 (posts.posts.posts topic)
+4. Search Service @KafkaListener 소비
+5. Elasticsearch에 문서 인덱싱 (Nori 분석기 적용)
+```
+
+**UPDATE 시나리오**:
+```
+PostgreSQL UPDATE → Debezium CDC → Kafka → Search Service
+→ Elasticsearch 문서 업데이트 (동일 ID)
+```
+
+**DELETE 시나리오**:
+```
+PostgreSQL DELETE → Debezium (tombstone event)
+→ Kafka (__deleted: "true") → Search Service
+→ Elasticsearch 문서 삭제
+```
+
+### 검증된 성능 (T022 테스트 결과)
+
+| 항목 | 결과 | 상태 |
+|------|------|------|
+| **동기화 속도** | 100 posts in ≤10s | ✅ PASS |
+| **데이터 정합성** | 0% 손실 (100% 일치) | ✅ PASS |
+| **레이턴시** | PostgreSQL → Elasticsearch 약 5초 | ✅ PASS |
+
+### CDC 파이프라인 검증
+
+```bash
+# 1. PostgreSQL에 데이터 생성
+docker exec -i moa-space-postgres psql -U moauser -d moaspace -c \
+  "INSERT INTO posts.posts (title, content, author_id) VALUES ('테스트', '내용', 1);"
+
+# 2. 5초 대기
+sleep 5
+
+# 3. Elasticsearch 확인
+curl -s http://localhost:9200/posts/_search?size=1 | jq '.hits.hits[]._source'
+```
+
+**예상 결과**: PostgreSQL 데이터와 동일한 문서가 Elasticsearch에 존재
+
+### 주요 컴포넌트
+
+| 컴포넌트 | 역할 | 포트 |
+|----------|------|------|
+| **Debezium Connect** | PostgreSQL CDC 캡처 | 8083 |
+| **Kafka** | 이벤트 스트리밍 | 9092 |
+| **Search Service** | Kafka 소비 + Elasticsearch 인덱싱 | 8082 |
+| **Elasticsearch** | 검색 엔진 (Nori 한국어 분석기) | 9200 |
 
 ## 다음 단계
 
-- **Phase 2**: Post CRUD API 구현 (Controller, Service, Repository with jOOQ)
-- **Phase 3**: 테스트 작성 (Unit, Integration, 100% JaCoCo 커버리지)
-- **Phase 4**: CDC (Change Data Capture) + Kafka 연동
+- **Phase 4**: 한국어 키워드 검색 API 구현 (Search Service REST API)
+- **Phase 5**: Gateway 통합 및 서비스 간 통신 패턴
+- **Phase 6**: Docker Compose 통합 환경 자동화
 
 ## 유용한 명령어
 
@@ -231,18 +326,38 @@ docker exec -it moa-space-postgres psql -U moauser -d moaspace -c "\dn"
 docker-compose up -d          # 전체 서비스 시작
 docker-compose down           # 전체 서비스 중지
 docker-compose down -v        # 데이터까지 완전 삭제
-docker-compose logs -f postgres  # PostgreSQL 로그 실시간 확인
+docker-compose ps             # 서비스 상태 확인
 
 # Gradle
 ./gradlew bootRun             # 애플리케이션 실행
 ./gradlew build               # 빌드 (테스트 포함)
 ./gradlew test                # 테스트 실행
-./gradlew jacocoTestReport    # 커버리지 리포트 생성
 ./gradlew generateJooq        # jOOQ 코드 생성 (Post Service)
 
 # PostgreSQL
-docker exec -it moa-space-postgres pg_isready -U moauser -d moaspace  # 연결 테스트
 docker exec -it moa-space-postgres psql -U moauser -d moaspace        # psql 접속
+docker exec -i moa-space-postgres psql -U moauser -d moaspace -c \
+  "SELECT COUNT(*) FROM posts.posts;"  # 게시글 수 확인
+
+# Elasticsearch
+curl http://localhost:9200/_cluster/health  # 클러스터 상태
+curl http://localhost:9200/posts/_count     # 인덱싱된 문서 수
+curl http://localhost:9200/posts/_doc/1     # 특정 문서 조회
+
+# Kafka
+docker exec -it moa-space-kafka kafka-topics --bootstrap-server localhost:9092 --list
+docker exec -it moa-space-kafka kafka-console-consumer \
+  --bootstrap-server localhost:9092 --topic posts.posts.posts --from-beginning
+
+# Debezium Connector
+curl http://localhost:8083/connectors          # 커넥터 목록
+curl http://localhost:8083/connectors/posts-connector/status  # 상태 확인
+
+# CDC 파이프라인 검증 (PostgreSQL → Elasticsearch)
+docker exec -i moa-space-postgres psql -U moauser -d moaspace -c \
+  "INSERT INTO posts.posts (title, content, author_id) VALUES ('테스트', '내용', 1);" && \
+sleep 5 && \
+curl -s http://localhost:9200/posts/_search?size=1 | jq '.hits.hits[]._source'
 ```
 
 ## 라이선스

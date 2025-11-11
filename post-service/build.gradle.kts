@@ -7,7 +7,7 @@ plugins {
     jacoco
 }
 
-group = "com.moaspace"
+group = "me.muheun.moaspace"
 version = "0.0.1-SNAPSHOT"
 
 java {
@@ -94,7 +94,7 @@ jooq {
                         excludes = "flyway_schema_history"
                     }
                     target.apply {
-                        packageName = "com.moaspace.post.jooq.generated"
+                        packageName = "me.muheun.moaspace.post.jooq.generated"
                         directory = "build/generated-src/jooq/main"
                     }
                     generate.apply {

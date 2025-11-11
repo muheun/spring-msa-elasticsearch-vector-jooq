@@ -16,21 +16,20 @@ repositories {
     mavenCentral()
 }
 
-extra["springCloudVersion"] = "2023.0.0"
-
 dependencies {
-    implementation("org.springframework.cloud:spring-cloud-starter-gateway")
+    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-data-elasticsearch")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
+    implementation("org.springframework.kafka:spring-kafka")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 
-    testImplementation("org.springframework.boot:spring-boot-starter-test")
-}
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
-dependencyManagement {
-    imports {
-        mavenBom("org.springframework.cloud:spring-cloud-dependencies:${property("springCloudVersion")}")
-    }
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.testcontainers:elasticsearch:1.19.3")
+    testImplementation("org.testcontainers:junit-jupiter:1.19.3")
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
