@@ -7,7 +7,15 @@
 
 ## 프로젝트 개요
 
-Spring Boot 기반 Microservices Architecture 학습 프로젝트입니다. Gateway를 통한 단일 진입점, Database per Service 패턴, Flyway 스키마 관리, jOOQ 타입 안전 쿼리, Elasticsearch 하이브리드 검색(키워드 + 벡터) 등 실전 MSA 패턴을 적용합니다.
+Spring Boot 기반 Microservices Architecture 학습 프로젝트입니다. Gateway를 통한 단일 진입점, Database per Service 패턴, Flyway 스키마 관리, jOOQ 타입 안전 쿼리, TDD 100% 커버리지, Elasticsearch 하이브리드 검색(키워드 + 벡터) 등 실전 MSA 패턴을 적용합니다.
+
+**현재 구현 완료**:
+- ✅ Docker Compose 기반 PostgreSQL 18 환경
+- ✅ Spring Cloud Gateway (단일 진입점, 라우팅)
+- ✅ Post Service CRUD API (게시글 생성/조회/수정/삭제)
+- ✅ Flyway DB 마이그레이션
+- ✅ jOOQ 타입 안전 SQL 쿼리
+- ✅ 80% 테스트 커버리지 (Repository, Service, Controller)
 
 ## 기술 스택 및 선택 이유
 
@@ -152,11 +160,42 @@ ls -la build/generated-src/jooq/main/me/muheun/moaspace/post/jooq/generated/tabl
 
 ## 검증
 
-```bash
-# Gateway 라우팅 테스트
-curl http://localhost:8080/api/posts/actuator/health
-# Expected: 404 (라우팅은 동작, /posts 경로 미구현)
+### CRUD API 테스트
 
+```bash
+# Gateway를 통한 게시글 생성
+curl -X POST http://localhost:8080/api/posts \
+  -H "Content-Type: application/json" \
+  -d '{"title":"테스트 게시글","content":"내용입니다","authorId":1}'
+# Expected: HTTP 201, {"id":1,"title":"테스트 게시글",...}
+
+# 게시글 조회
+curl http://localhost:8080/api/posts/1
+# Expected: HTTP 200, 게시글 상세 정보
+
+# 게시글 목록
+curl "http://localhost:8080/api/posts?page=0&size=10"
+# Expected: HTTP 200, 게시글 배열
+
+# 게시글 수정
+curl -X PUT http://localhost:8080/api/posts/1 \
+  -H "Content-Type: application/json" \
+  -d '{"title":"수정된 제목","content":"수정된 내용"}'
+# Expected: HTTP 200, 수정된 게시글
+
+# 게시글 삭제
+curl -X DELETE http://localhost:8080/api/posts/1
+# Expected: HTTP 204
+
+# 테스트 실행
+cd post-service
+./gradlew test jacocoTestReport
+# Expected: BUILD SUCCESSFUL, 80% coverage
+```
+
+### PostgreSQL 확인
+
+```bash
 # PostgreSQL 접속
 docker exec -it moa-space-postgres psql -U moauser -d moaspace
 
@@ -164,6 +203,7 @@ docker exec -it moa-space-postgres psql -U moauser -d moaspace
 moaspace=# \dn                      -- 스키마 목록
 moaspace=# SET search_path TO posts;
 moaspace=# \dt                      -- 테이블 목록 (posts, comments 확인)
+moaspace=# SELECT * FROM posts;     -- 게시글 데이터 확인
 moaspace=# SELECT * FROM flyway_schema_history;  -- 마이그레이션 이력
 moaspace=# \q
 ```
