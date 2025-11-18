@@ -26,7 +26,8 @@ class SearchApplicationTests {
         assertThat(beanNames).contains(
             "elasticsearchConfig",
             "elasticsearchPostSearchService",
-            "postConsumer"
+            "cdcEventListener",
+            "postDocumentCdcEventHandler"
         )
     }
 }

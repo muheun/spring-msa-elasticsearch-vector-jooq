@@ -124,46 +124,17 @@ services:
       - moa-space-network
 
   debezium-init:
-    image: curlimages/curl:latest
+    image: alpine:3.20
     container_name: moa-space-debezium-init
     depends_on:
       debezium-connect:
         condition: service_healthy
-    command: >
-      sh -c '
-      echo "Waiting for Debezium Connect to be ready...";
-      sleep 10;
-      echo "Registering Debezium PostgreSQL connector...";
-      curl -i -X POST http://debezium-connect:8083/connectors \
-        -H "Content-Type: application/json" \
-        -d "{
-          \"name\": \"posts-connector\",
-          \"config\": {
-            \"connector.class\": \"io.debezium.connector.postgresql.PostgresConnector\",
-            \"plugin.name\": \"pgoutput\",
-            \"database.hostname\": \"postgres\",
-            \"database.port\": \"5432\",
-            \"database.user\": \"moauser\",
-            \"database.password\": \"moa123!\",
-            \"database.dbname\": \"moaspace\",
-            \"database.server.name\": \"posts\",
-            \"topic.prefix\": \"posts\",
-            \"table.include.list\": \"posts.posts\",
-            \"snapshot.mode\": \"initial\",
-            \"publication.autocreate.mode\": \"filtered\",
-            \"slot.name\": \"debezium_posts\",
-            \"key.converter\": \"org.apache.kafka.connect.json.JsonConverter\",
-            \"key.converter.schemas.enable\": \"false\",
-            \"value.converter\": \"org.apache.kafka.connect.json.JsonConverter\",
-            \"value.converter.schemas.enable\": \"false\",
-            \"transforms\": \"unwrap\",
-            \"transforms.unwrap.type\": \"io.debezium.transforms.ExtractNewRecordState\",
-            \"transforms.unwrap.drop.tombstones\": \"false\",
-            \"transforms.unwrap.delete.handling.mode\": \"rewrite\"
-          }
-        }";
-      echo "Debezium connector registration completed!"
-      '
+    environment:
+      CONNECTOR_CONFIG_DIR: /connectors
+    entrypoint: ["/bin/sh", "/scripts/register-connectors.sh"]
+    volumes:
+      - ./debezium/connectors:/connectors:ro
+      - ./debezium/register-connectors.sh:/scripts/register-connectors.sh:ro
     networks:
       - moa-space-network
 

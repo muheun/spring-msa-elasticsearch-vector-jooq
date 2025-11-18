@@ -31,3 +31,7 @@ logging:
     root: INFO
     me.muheun.moaspace.search: DEBUG
     org.springframework.data.elasticsearch: DEBUG
+
+cdc:
+  topic-handlers:
+    posts.posts.posts: post-document

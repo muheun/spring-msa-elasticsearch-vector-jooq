@@ -31,7 +31,7 @@ class CustomDocumentRepositoryImpl<T>(
         aliasActions.add(
             AliasAction.Add(
                 AliasActionParameters.builder()
-                    .withIndices(*indexOperations.indexCoordinates.indexNames) // 배열 전개 필수
+                    .withIndices(*indexOperations.indexCoordinates.indexNames)
                     .withAliases(aliasNameWrapper.indexName)
                     .build()
             )
@@ -40,13 +40,11 @@ class CustomDocumentRepositoryImpl<T>(
     }
 
     // Elasticsearch GET /_alias/{alias_name}
-    // 반환: {"index_name": {"aliases": {"alias_name": {}}}}
     override fun findIndexNamesByAlias(aliasNameWrapper: IndexCoordinates): Set<String> {
         return try {
             val indexOperations: IndexOperations = elasticsearchOperations.indexOps(aliasNameWrapper)
             val aliasData = indexOperations.getAliases(aliasNameWrapper.indexName)
 
-            // Map의 key = index names, value = alias metadata
             aliasData.keys
         } catch (e: Exception) {
             logger.info("Alias name: [ ${aliasNameWrapper.indexName} ] not found: ${e.message}")

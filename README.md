@@ -246,7 +246,9 @@ moa-space/
     │   │   ├── model/
     │   │   │   └── PostDocument.kt         # @Document 엔티티
     │   │   └── consumer/
-    │   │       └── PostConsumer.kt         # @KafkaListener
+    │   │       ├── CdcEventListener.kt     # 공용 @KafkaListener
+    │   │       ├── CdcEventHandler.kt      # 엔티티별 핸들러 인터페이스
+    │   │       └── PostDocumentCdcEventHandler.kt  # 게시글 인덱싱 담당
     │   └── resources/
     │       ├── application.yml              # Kafka, Elasticsearch 설정
     │       └── elasticsearch/
@@ -391,7 +393,10 @@ docker exec -it moa-space-kafka kafka-console-consumer \
 
 # Debezium Connector
 curl http://localhost:8083/connectors          # 커넥터 목록
-curl http://localhost:8083/connectors/posts-connector/status  # 상태 확인
+curl http://localhost:8083/connectors/moa-space-posts-connector/status  # 상태 확인
+
+# 커넥터 설정은 debezium/connectors/*.json 에서 관리
+# 새 엔터티를 추가/수정했다면 JSON 작성 후 `docker compose up -d debezium-init`으로 초기화 컨테이너만 재실행하면 자동 반영됩니다
 
 # CDC 파이프라인 검증 (PostgreSQL → Elasticsearch)
 docker exec -i moa-space-postgres psql -U moauser -d moaspace -c \

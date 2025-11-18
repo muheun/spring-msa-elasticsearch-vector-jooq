@@ -13,3 +13,7 @@ logging:
   level:
     me.muheun.moaspace.search: DEBUG
     org.elasticsearch: WARN
+
+cdc:
+  topic-handlers:
+    posts.posts.posts: post-document
